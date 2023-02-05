@@ -2,16 +2,7 @@ import speech_recognition as sr
 import nltk
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import wordnet
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-
-nltk.download('stopwords')
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('wordnet')
-
-stop_words = set(stopwords.words("english"))
-lemmatizer = WordNetLemmatizer()
+from nltk.metrics.distance import jaccard_distance
 
 # Initialize recognizer class (for recognizing the speech)
 r = sr.Recognizer()
@@ -33,39 +24,57 @@ def listen_to_speech():
 
     try:
         # using google to recognize speech
-        text = r.recognize_google(audio, show_all=True)["alternative"][0]["transcript"]
+        text = r.recognize_google(audio)
         print(f"You said: {text}")
         return text
-    except sr.UnknownValueError:
+    except:
         print("Sorry, I did not get that.")
-        return None
-    except sr.RequestError as e:
-        print("Could not request results from Google Speech Recognition service; {0}".format(e))
         return None
 
 # Function to process text
 def process_text(text):
     # Tokenize text
-    words = word_tokenize(text)
+    words = nltk.word_tokenize(text)
 
     # Remove stop words
+    stop_words = set(nltk.corpus.stopwords.words("english"))
     words = [word for word in words if word.lower() not in stop_words]
 
     # Lemmatize words
+    lemmatizer = WordNetLemmatizer()
     words = [lemmatizer.lemmatize(word, get_wordnet_pos(word)) for word in words]
+
+    # Stem words
+    stemmer = nltk.SnowballStemmer("english")
+    words = [stemmer.stem(word) for word in words]
 
     return words
 
 # Function to get wordnet pos
 def get_wordnet_pos(word):
     tag = nltk.pos_tag([word])[0][1]
-    if tag.startswith('J'):
+    if tag.startswith("J"):
         return wordnet.ADJ
-    elif tag.startswith('V'):
+    elif tag.startswith("V"):
         return wordnet.VERB
-    elif tag.startswith('N'):
+    elif tag.startswith("N"):
         return wordnet.NOUN
-    elif tag.startswith('R'):
+    elif tag.startswith("R"):
         return wordnet.ADV
     else:
         return wordnet.NOUN
+
+# Function to answer questions
+def answer_question(processed_text):
+    best_question = None
+    highest_similarity = 0
+    for question in questions_answers.keys():
+        question_words = process_text(question)
+        similarity = jaccard_distance(set(processed_text), set(question_words))
+        if similarity > highest_similarity:
+            highest_similarity = similarity
+            best_question = question
+    
+    if highest_similarity > 0.5:
+        return "I'm sorry, I don't understand what you're asking."
+   
