@@ -5,6 +5,7 @@ import os
 import json
 import requests
 import time
+import langdetect
 
 try:
     with open("qa_data.txt", "r") as f:
@@ -36,14 +37,24 @@ def play_audio(answer):
     except:
         print("Error: Could not convert text to speech.")
 
+microphone_enabled = True
+
 while True:
-    try:
-        with sr.Microphone() as source:
-            print("Ask a question or give a command:")
-            audio = r.listen(source)
-    except:
-        print("Error: Could not listen to microphone input.")
-        continue
+    if microphone_enabled:
+        try:
+            with sr.Microphone() as source:
+                print("Ask a question or give a command:")
+                audio = r.listen(source)
+        except:
+            print("Error: Could not listen to microphone input.")
+            continue
+    else:
+        # wait for user input in text form
+        print("Enter your question or command:")
+        question = input().lower()
+
+        # convert the text to speech
+        audio = r.record(question)
 
     try:
         command = r.recognize_google(audio).lower()
@@ -78,6 +89,13 @@ while True:
         except sr.RequestError as e:
             print(f"Error: {e}")
             continue
+    elif command == "toggle microphone":
+        microphone_enabled = not microphone_enabled
+        if microphone_enabled:
+            print("Microphone is now enabled.")
+        else:
+            print("Microphone is now disabled.")
+        continue
     else:
         question = command
 
@@ -106,12 +124,3 @@ while True:
                 save_data(qa_dict)
             else:
                 print("Sorry, I don't know the answer.")
-                continue
-
-    try:
-        tts = gTTS(answer)
-        tts.save("answer.mp3")
-        os.system("mpg321 answer.mp3")
-    except:
-        print("Error: Could not convert text to speech.")
-        continue
