@@ -4,6 +4,7 @@ from gtts import gTTS
 import os
 import json
 import requests
+import time
 
 try:
     with open("qa_data.txt", "r") as f:
@@ -27,24 +28,58 @@ def save_data(qa_dict):
     except:
         print("Error: Could not save Q&A data to file.")
 
+def play_audio(answer):
+    try:
+        tts = gTTS(answer)
+        tts.save("answer.mp3")
+        os.system("mpg321 answer.mp3")
+    except:
+        print("Error: Could not convert text to speech.")
+
 while True:
     try:
         with sr.Microphone() as source:
-            print("Ask a question:")
+            print("Ask a question or give a command:")
             audio = r.listen(source)
     except:
         print("Error: Could not listen to microphone input.")
         continue
 
     try:
-        question = r.recognize_google(audio).lower()
-        print("Question:", question)
+        command = r.recognize_google(audio).lower()
+        print("Command:", command)
     except sr.UnknownValueError:
         print("Error: Could not recognize speech.")
         continue
     except sr.RequestError as e:
         print(f"Error: {e}")
         continue
+
+    if command == "stop":
+        break
+    elif command == "pause":
+        os.system("pkill mpg321")
+        continue
+    elif command == "resume":
+        try:
+            with sr.Microphone() as source:
+                print("Ask a question or give a command:")
+                audio = r.listen(source)
+        except:
+            print("Error: Could not listen to microphone input.")
+            continue
+
+        try:
+            question = r.recognize_google(audio).lower()
+            print("Question:", question)
+        except sr.UnknownValueError:
+            print("Error: Could not recognize speech.")
+            continue
+        except sr.RequestError as e:
+            print(f"Error: {e}")
+            continue
+    else:
+        question = command
 
     answer = qa_dict.get(question)
     if answer:
