@@ -1,80 +1,82 @@
 import speech_recognition as sr
-import nltk
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import wordnet
-from nltk.metrics.distance import jaccard_distance
+import wikipediaapi
+from gtts import gTTS
+import os
+import json
+import requests
 
-# Initialize recognizer class (for recognizing the speech)
+try:
+    with open("qa_data.txt", "r") as f:
+        qa_dict = json.load(f)
+except FileNotFoundError:
+    qa_dict = {}
+except json.JSONDecodeError:
+    print("Error: Could not load Q&A data from file.")
+    qa_dict = {}
+
 r = sr.Recognizer()
+wiki = wikipediaapi.Wikipedia(
+        language='en',
+        extract_format=wikipediaapi.ExtractFormat.WIKI
+)
 
-# A list of Q&A pairs
-questions_answers = {
-    "what's your name": "My name is ChatGPT.",
-    "how old are you": "I was trained by OpenAI, so I don't have an age.",
-    "what do you do": "I am a language model that can answer questions and generate text.",
-}
+def save_data(qa_dict):
+    try:
+        with open("qa_data.txt", "w") as f:
+            json.dump(qa_dict, f)
+    except:
+        print("Error: Could not save Q&A data to file.")
 
-# Function to listen to the speech and return text
-def listen_to_speech():
-    # Reading Microphone as source
-    with sr.Microphone() as source:
-        print("Talk")
-        audio = r.listen(source)
-        print("Stop.")
+while True:
+    try:
+        with sr.Microphone() as source:
+            print("Ask a question:")
+            audio = r.listen(source)
+    except:
+        print("Error: Could not listen to microphone input.")
+        continue
 
     try:
-        # using google to recognize speech
-        text = r.recognize_google(audio)
-        print(f"You said: {text}")
-        return text
-    except:
-        print("Sorry, I did not get that.")
-        return None
+        question = r.recognize_google(audio).lower()
+        print("Question:", question)
+    except sr.UnknownValueError:
+        print("Error: Could not recognize speech.")
+        continue
+    except sr.RequestError as e:
+        print(f"Error: {e}")
+        continue
 
-# Function to process text
-def process_text(text):
-    # Tokenize text
-    words = nltk.word_tokenize(text)
-
-    # Remove stop words
-    stop_words = set(nltk.corpus.stopwords.words("english"))
-    words = [word for word in words if word.lower() not in stop_words]
-
-    # Lemmatize words
-    lemmatizer = WordNetLemmatizer()
-    words = [lemmatizer.lemmatize(word, get_wordnet_pos(word)) for word in words]
-
-    # Stem words
-    stemmer = nltk.SnowballStemmer("english")
-    words = [stemmer.stem(word) for word in words]
-
-    return words
-
-# Function to get wordnet pos
-def get_wordnet_pos(word):
-    tag = nltk.pos_tag([word])[0][1]
-    if tag.startswith("J"):
-        return wordnet.ADJ
-    elif tag.startswith("V"):
-        return wordnet.VERB
-    elif tag.startswith("N"):
-        return wordnet.NOUN
-    elif tag.startswith("R"):
-        return wordnet.ADV
+    answer = qa_dict.get(question)
+    if answer:
+        print("Answer:", answer)
     else:
-        return wordnet.NOUN
+        response = requests.get(f"https://api.duckduckgo.com/?q={question}&format=json")
+        try:
+            response_json = response.json()
+        except:
+            print("Error: Could not retrieve response from DuckDuckGo API.")
+            continue
 
-# Function to answer questions
-def answer_question(processed_text):
-    best_question = None
-    highest_similarity = 0
-    for question in questions_answers.keys():
-        question_words = process_text(question)
-        similarity = jaccard_distance(set(processed_text), set(question_words))
-        if similarity > highest_similarity:
-            highest_similarity = similarity
-            best_question = question
-    
-    if highest_similarity > 0.5:
-        return "I'm sorry, I don't understand what you're asking."
-   
+        if response_json.get("Abstract"):
+            answer = response_json["AbstractText"]
+            print("Answer:", answer)
+            qa_dict[question] = answer
+            save_data(qa_dict)
+        else:
+            page = wiki.page(question)
+            if page.exists():
+                answer = page.text[0:min(len(page.text), 500)] + "..."
+                print("Answer:", answer)
+                qa_dict[question] = answer
+                save_data(qa_dict)
+            else:
+                print("Sorry, I don't know the answer.")
+                continue
+
+    try:
+        tts = gTTS(answer)
+        tts.save("answer.mp3")
+        os.system("mpg321 answer.mp3")
+    except:
+        print("Error: Could not convert text to speech.")
+        continue
