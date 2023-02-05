@@ -2,6 +2,16 @@ import speech_recognition as sr
 import nltk
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import wordnet
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+
+nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('wordnet')
+
+stop_words = set(stopwords.words("english"))
+lemmatizer = WordNetLemmatizer()
 
 # Initialize recognizer class (for recognizing the speech)
 r = sr.Recognizer()
@@ -23,24 +33,25 @@ def listen_to_speech():
 
     try:
         # using google to recognize speech
-        text = r.recognize_google(audio)
+        text = r.recognize_google(audio, show_all=True)["alternative"][0]["transcript"]
         print(f"You said: {text}")
         return text
-    except:
+    except sr.UnknownValueError:
         print("Sorry, I did not get that.")
+        return None
+    except sr.RequestError as e:
+        print("Could not request results from Google Speech Recognition service; {0}".format(e))
         return None
 
 # Function to process text
 def process_text(text):
     # Tokenize text
-    words = nltk.word_tokenize(text)
+    words = word_tokenize(text)
 
     # Remove stop words
-    stop_words = set(nltk.corpus.stopwords.words("english"))
     words = [word for word in words if word.lower() not in stop_words]
 
     # Lemmatize words
-    lemmatizer = WordNetLemmatizer()
     words = [lemmatizer.lemmatize(word, get_wordnet_pos(word)) for word in words]
 
     return words
